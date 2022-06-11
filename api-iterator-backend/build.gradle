@@ -1,0 +1,177 @@
+buildscript {
+    ext {
+        springBootVersion = '2.1.5.RELEASE'
+    }
+
+    dependencies {
+        classpath 'org.jfrog.buildinfo:build-info-extractor-gradle:4.7.5'
+        classpath 'org.owasp:dependency-check-gradle:3.3.4'
+    }
+}
+
+plugins {
+    id "idea"
+    id "org.springframework.boot" version "2.1.5.RELEASE"
+    id "com.jfrog.artifactory" version "4.7.5"
+    id "jacoco"
+    id 'codenarc'
+    id 'de.jansauer.printcoverage' version '2.0.0'
+    id "org.sonarqube" version "3.0"
+}
+
+apply plugin: 'application'
+apply plugin: 'com.jfrog.artifactory'
+apply plugin: 'java'
+apply plugin: 'org.springframework.boot'
+apply plugin: 'io.spring.dependency-management'
+apply plugin: 'jacoco'
+
+sourceCompatibility = 1.8
+mainClassName = "api.iterator.backend.App"
+
+jacoco {
+    toolVersion = "0.8.3"
+    reportsDir = file("$buildDir/reports/jacoco/")
+}
+
+jacocoTestReport {
+    reports {
+        xml.enabled true
+        csv.enabled false
+        html.destination file("${buildDir}/reports/jacoco/html")
+    }
+}
+
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = (project.hasProperty("min_coverage") && project.property("min_coverage")
+                        ? project.property("min_coverage").toString()
+                        : "0.8"
+                ).toBigDecimal()
+            }
+        }
+
+        rule {
+            enabled = false
+            element = 'CLASS'
+            includes = ['org.gradle.*']
+
+            limit {
+                counter = 'LINE'
+                value = 'TOTALCOUNT'
+                maximum = 0.3
+            }
+        }
+    }
+}
+
+codenarc {
+    configFile = new File('src/main/resources/codenarc.xml')
+    reportFormat = 'html'
+}
+
+def dockerHubUrl = "hub.docker.com"
+def dockerHubUsername = "tienpv147"
+def dockerHubPassword = "tienphamvan"
+
+allprojects {
+    repositories {
+        mavenCentral()
+        jcenter()
+        maven {
+            url "https://${dockerHubUrl}/artifactory/snapshots"
+            credentials {
+                username = dockerHubUsername
+                password = dockerHubPassword
+            }
+        }
+        maven {
+            url "https://${dockerHubUrl}/artifactory/releases"
+            credentials {
+                username = dockerHubUsername
+                password = dockerHubPassword
+            }
+        }
+    }
+}
+
+idea {
+    module {
+        inheritOutputDirs = false
+        outputDir = file("$buildDir/classes/java/main")
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ["src/main/java"]
+        }
+        resources {
+            srcDirs = ["src/main/resources"]
+        }
+    }
+}
+
+artifactory {
+    //The base Artifactory URL if not overridden by the publisher/resolver
+    contextUrl = "https://${dockerHubUrl}/artifactory/"
+    publish {
+        repository {
+            // create a virtual repository
+            repoKey = 'releases'
+            username = dockerHubUsername
+            password = dockerHubPassword
+            maven = true
+        }
+    }
+
+    resolve {
+        repository {
+            // create a virtual repository
+            repoKey = 'snapshots'
+            username = dockerHubUsername
+            password = dockerHubPassword
+            maven = true
+        }
+        repository {
+            // create a virtual repository
+            repoKey = 'releases'
+            username = dockerHubUsername
+            password = dockerHubPassword
+            maven = true
+        }
+    }
+}
+
+dependencies {
+    // Utils
+    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.9.6'
+    implementation group: 'mysql', name: 'mysql-connector-java'
+    implementation group: 'org.hsqldb', name: 'hsqldb'
+    implementation group: 'org.json', name: 'json', version: '20190722'
+    implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.5'
+    implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.7'
+    implementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.7'
+
+    // Spring Data MySQL, hibernate
+    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa'
+    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web'
+    implementation group: 'mysql', name: 'mysql-connector-java'
+    implementation group: 'org.hsqldb', name: 'hsqldb'
+
+    // String JWT, Security
+    implementation group: 'com.auth0', name: 'java-jwt', version: '3.10.3'
+    implementation group: 'org.springframework.security', name: 'spring-security-core'
+    implementation group: 'org.springframework.security', name: 'spring-security-web'
+    implementation group: 'org.springframework.security', name: 'spring-security-config'
+
+    // Utils
+    implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.5'
+
+    // Test
+    testImplementation group: 'junit', name: 'junit', version: '4.12'
+    testImplementation group: 'org.springframework.boot', name:'spring-boot-starter-test'
+}
